@@ -4,6 +4,9 @@ on:
   push:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -20,9 +23,19 @@ jobs:
           gradle-version: "8.11.1"
 
       - name: APK bauen
-        run: gradle assembleRelease --no-daemon
+        run: |
+          gradle assembleRelease --no-daemon
+          cp app/build/outputs/apk/release/*.apk PlaylistEQ.apk
 
       - uses: actions/upload-artifact@v4
         with:
           name: PlaylistEQ-apk
-          path: app/build/outputs/apk/release/*.apk
+          path: PlaylistEQ.apk
+
+      - name: Als Release veröffentlichen (Download aufs Handy)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: PlaylistEQ Build ${{ github.run_number }}
+          make_latest: true
+          files: PlaylistEQ.apk
