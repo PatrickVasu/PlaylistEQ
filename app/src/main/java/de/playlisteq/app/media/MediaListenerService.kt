@@ -76,8 +76,47 @@ class MediaListenerService : NotificationListenerService() {
             artist = md?.getString(MediaMetadata.METADATA_KEY_ARTIST)
                 ?: md?.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST),
             album = md?.getString(MediaMetadata.METADATA_KEY_ALBUM),
-            queueTitle = c.queueTitle?.toString(),
+            queueTitle = c.queueTitle?.toString()?.trim()?.takeUnless { isGeneric(it) },
             playing = c === active,
+            details = collectDetails(c, md),
+        )
+    }
+
+    /** Platzhalter, die manche Apps statt eines Playlist-Namens melden. */
+    private fun isGeneric(t: String): Boolean =
+        t.isBlank() || t.lowercase() in GENERIC_QUEUE_TITLES
+
+    @Suppress("DEPRECATION")
+    private fun collectDetails(c: MediaController, md: MediaMetadata?): List<Pair<String, String>> {
+        val out = mutableListOf<Pair<String, String>>()
+        out += "Paket" to c.packageName
+        out += "Warteschlangen-Titel" to (c.queueTitle?.toString() ?: "–")
+        md?.let { m ->
+            m.keySet().sorted().forEach { k ->
+                if (k.contains("ART") || k.contains("ICON")) return@forEach
+                val v = m.getText(k)?.toString()
+                    ?: m.getLong(k).takeIf { it != 0L }?.toString()
+                    ?: return@forEach
+                out += k.removePrefix("android.media.metadata.") to v
+            }
+        }
+        c.extras?.let { b -> b.keySet().sorted().forEach { k -> out += "extra: $k" to b.get(k).toString() } }
+        c.playbackState?.extras?.let { b -> b.keySet().sorted().forEach { k -> out += "state: $k" to b.get(k).toString() } }
+        c.queue?.let { q ->
+            out += "Warteschlange (Anzahl)" to q.size.toString()
+            q.take(3).forEachIndexed { i, item ->
+                val d = item.description
+                out += "Eintrag ${i + 1}" to listOfNotNull(d.title, d.subtitle, d.description).joinToString(" · ")
+                d.extras?.let { b -> b.keySet().sorted().forEach { k -> out += "  extra: $k" to b.get(k).toString() } }
+            }
+        }
+        return out
+    }
+
+    companion object {
+        private val GENERIC_QUEUE_TITLES = setOf(
+            "warteschlange", "queue", "now playing", "wird gerade abgespielt", "läuft gerade",
+            "wiedergabe", "als nächstes", "up next", "nächste titel", "playing queue", "aktuelle wiedergabe",
         )
     }
 }

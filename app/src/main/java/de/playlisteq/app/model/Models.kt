@@ -173,6 +173,8 @@ data class NowPlaying(
     val album: String?,
     val queueTitle: String?,
     val playing: Boolean,
+    /** Alle Rohdaten, die die App meldet (für die Ansicht „Technische Details“). */
+    val details: List<Pair<String, String>> = emptyList(),
 )
 
 /** Wiedergabe-Kontext laut Spotify Web API (z. B. die Playlist). */

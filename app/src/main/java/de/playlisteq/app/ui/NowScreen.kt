@@ -25,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
@@ -34,7 +35,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -70,6 +73,8 @@ fun NowScreen(onCreateRule: (Rule) -> Unit) {
 
     var listenerOk by remember { mutableStateOf(listenerEnabled(ctx)) }
     var notifOk by remember { mutableStateOf(notifGranted(ctx)) }
+    var showDetails by remember { mutableStateOf(false) }
+    val clipboard = LocalClipboardManager.current
     val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { notifOk = it }
 
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -170,6 +175,28 @@ fun NowScreen(onCreateRule: (Rule) -> Unit) {
                     }
                     n.album?.let { a -> OutlinedButton(onClick = { draft(MatchField.ALBUM, a) }) { Text("dieses Album") } }
                     OutlinedButton(onClick = { draft(MatchField.APP, "") }) { Text("ganze App") }
+                }
+            }
+        }
+
+        np?.let { n ->
+            SectionCard {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Technische Details", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                    TextButton(onClick = { showDetails = !showDetails }) { Text(if (showDetails) "Ausblenden" else "Anzeigen") }
+                }
+                if (showDetails) {
+                    Text(
+                        "Alles, was ${n.appLabel} an Android meldet. Steht hier irgendwo der Playlist-Name, kann PlaylistEQ ihn nutzen.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    n.details.forEach { (k, v) -> InfoLine(k, v) }
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(onClick = {
+                        clipboard.setText(AnnotatedString(n.details.joinToString("\n") { "${it.first}: ${it.second}" }))
+                    }) { Text("Kopieren") }
                 }
             }
         }
