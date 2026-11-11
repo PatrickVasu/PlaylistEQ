@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Fünf EQ-Regler -->
+    <path android:fillColor="#A5B4FC" android:pathData="M33,36h4v36h-4z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M30,56h10v6h-10z" />
+    <path android:fillColor="#A5B4FC" android:pathData="M43,36h4v36h-4z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M40,42h10v6h-10z" />
+    <path android:fillColor="#A5B4FC" android:pathData="M53,36h4v36h-4z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M50,50h10v6h-10z" />
+    <path android:fillColor="#A5B4FC" android:pathData="M63,36h4v36h-4z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M60,60h10v6h-10z" />
+    <path android:fillColor="#A5B4FC" android:pathData="M73,36h4v36h-4z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M70,46h10v6h-10z" />
+</vector>
