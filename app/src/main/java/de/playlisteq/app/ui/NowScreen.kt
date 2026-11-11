@@ -71,6 +71,7 @@ fun NowScreen(onCreateRule: (Rule) -> Unit) {
     val current by LiveState.currentProfileName.collectAsState()
     val error by LiveState.engineError.collectAsState()
     val followUp by LiveState.followUp.collectAsState()
+    val reason by LiveState.reason.collectAsState()
 
     var listenerOk by remember { mutableStateOf(listenerEnabled(ctx)) }
     var notifOk by remember { mutableStateOf(notifGranted(ctx)) }
@@ -118,6 +119,9 @@ fun NowScreen(onCreateRule: (Rule) -> Unit) {
                         else "Ausgeschaltet",
                         style = MaterialTheme.typography.bodyMedium,
                     )
+                    if (settings.enabled) reason?.let {
+                        Text("Grund: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
                 Switch(checked = settings.enabled, onCheckedChange = { on -> Store.updateSettings { it.copy(enabled = on) } })
             }

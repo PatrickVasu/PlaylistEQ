@@ -24,7 +24,7 @@ object EqCoordinator {
     const val SPOTIFY_PKG = "com.spotify.music"
 
     /** Zuletzt passende Playlist-Regel je App, die empfohlene Songs einschließt. */
-    private data class Sticky(val ruleId: String, var lastActive: Long)
+    private data class Sticky(val ruleId: String, var lastActive: Long, val title: String?)
     private val sticky = HashMap<String, Sticky>()
     private const val STICKY_TIMEOUT_MS = 10 * 60 * 1000L
 
@@ -82,47 +82,69 @@ object EqCoordinator {
         }
         engine.sync(desired)
         LiveState.applied.value = desired.mapValues { it.value?.name ?: "Aus" }
-        LiveState.currentProfileName.value = resolve(snap.np?.packageName, snap)?.name
-        LiveState.followUp.value = snap.np?.let { n ->
-            val st = sticky[n.packageName] ?: return@let null
-            val r = snap.cfg.rules.firstOrNull { it.id == st.ruleId } ?: return@let null
-            if (snap.cfg.rules.filter { it.packageName == n.packageName && it.field != MatchField.APP }
-                    .any { matches(it, n, snap.sp) }) null else r.pattern
-        }
+        val cur = resolveWithReason(snap.np?.packageName, snap)
+        LiveState.currentProfileName.value = cur.profile?.name
+        LiveState.reason.value = cur.reason
+        LiveState.followUp.value = cur.followUpOf
     }
+
+    private data class Resolution(val profile: EqProfile?, val reason: String, val followUpOf: String? = null)
+
+    private fun resolve(pkg: String?, snap: Snapshot): EqProfile? = resolveWithReason(pkg, snap).profile
 
     /**
      * Reihenfolge: 1. passende Playlist/Album/Künstler/Titel-Regel der App,
-     * 2. "Ganze App"-Regel, 3. Standardprofil.
+     * 2. empfohlene Songs nach einer Playlist (falls aktiviert), 3. "Ganze App"-Regel, 4. Standardprofil.
      */
-    private fun resolve(pkg: String?, snap: Snapshot): EqProfile? {
+    private fun resolveWithReason(pkg: String?, snap: Snapshot): Resolution {
         val byId = snap.cfg.profiles.associateBy { it.id }
         if (pkg != null) {
             val appRules = snap.cfg.rules.filter { it.packageName == pkg }
             val np = snap.np?.takeIf { it.packageName == pkg }
             if (np != null) {
                 val now = System.currentTimeMillis()
+                val current = playlistOf(np, snap.sp)
                 val hit = appRules.filter { it.field != MatchField.APP }.firstOrNull { matches(it, np, snap.sp) }
                 if (hit != null) {
-                    if (hit.includeFollowUps) sticky[pkg] = Sticky(hit.id, now) else sticky.remove(pkg)
-                    byId[hit.profileId]?.let { return it }
+                    if (hit.includeFollowUps) sticky[pkg] = Sticky(hit.id, now, current) else sticky.remove(pkg)
+                    byId[hit.profileId]?.let { return Resolution(it, "Regel: ${describe(hit)}") }
                 }
-                // Keine Regel passt: läuft die Playlist mit empfohlenen Songs weiter?
+                // Keine Regel passt: laufen gerade empfohlene Songs nach einer Playlist?
                 val st = sticky[pkg]
                 if (st != null) {
                     val rule = appRules.firstOrNull { it.id == st.ruleId && it.includeFollowUps }
-                    if (rule != null && now - st.lastActive < STICKY_TIMEOUT_MS) {
+                    val switchedPlaylist = current != null && !current.equals(st.title, ignoreCase = true) &&
+                        !looksLikeRecommendation(current)
+                    if (rule != null && !switchedPlaylist && now - st.lastActive < STICKY_TIMEOUT_MS) {
                         if (np.playing) st.lastActive = now
-                        byId[rule.profileId]?.let { return it }
+                        byId[rule.profileId]?.let {
+                            return Resolution(it, "Empfohlene Songs nach „${rule.pattern}“", rule.pattern)
+                        }
                     } else {
                         sticky.remove(pkg)
                     }
                 }
             }
-            appRules.firstOrNull { it.field == MatchField.APP }
-                ?.let { r -> byId[r.profileId]?.let { return it } }
+            appRules.firstOrNull { it.field == MatchField.APP }?.let { r ->
+                byId[r.profileId]?.let { return Resolution(it, "Regel „Ganze App“ für ${r.appLabel}") }
+            }
         }
-        return snap.cfg.settings.defaultProfileId?.let { byId[it] }
+        val def = snap.cfg.settings.defaultProfileId?.let { byId[it] }
+        return if (def != null) Resolution(def, "Standardprofil (keine Regel passt)")
+        else Resolution(null, "Keine Regel passt, kein Standardprofil")
+    }
+
+    private fun describe(r: Rule): String =
+        if (r.field == MatchField.APP) "Ganze App"
+        else "${r.field.title} ${if (r.contains) "enthält" else "="} „${r.pattern}“"
+
+    private val RECOMMENDATION_HINTS = listOf(
+        "empfohlen", "radio", "autoplay", "basierend", "ähnlich", "recommended", "similar", "based on", "station",
+    )
+
+    private fun looksLikeRecommendation(title: String): Boolean {
+        val t = title.lowercase()
+        return RECOMMENDATION_HINTS.any { t.contains(it) }
     }
 
     private fun matches(rule: Rule, np: NowPlaying, sp: SpotifyContext?): Boolean {
@@ -142,12 +164,13 @@ object EqCoordinator {
     }
 
     private fun playlistCandidates(np: NowPlaying, sp: SpotifyContext?): List<String> {
+        // Was die App selbst meldet, ist immer aktuell – die Web-API-Antwort kann veraltet sein.
+        np.contextTitle?.let { return listOf(it) }
         val list = mutableListOf<String>()
         if (np.packageName == SPOTIFY_PKG && sp?.type == "playlist") {
             sp.name?.let { list += it }
             sp.uri?.let { list += it }
         }
-        np.contextTitle?.let { list += it }
         np.queueTitle?.let { list += it }
         return list
     }
@@ -166,10 +189,10 @@ object EqCoordinator {
 
     /** Playlist-Name zur Anzeige / zum Anlegen einer Regel. */
     fun playlistOf(np: NowPlaying, sp: SpotifyContext?): String? {
+        np.contextTitle?.let { return it }
         if (np.packageName == SPOTIFY_PKG && sp?.type == "playlist") {
             sp.name?.let { return it }
         }
-        np.contextTitle?.let { return it }
         if (np.packageName == SPOTIFY_PKG && sp?.type == "playlist" && sp.uri != null) return sp.uri
         return np.queueTitle?.takeIf { it.isNotBlank() }
     }

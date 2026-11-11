@@ -25,6 +25,9 @@ object LiveState {
     /** Gesetzt, wenn gerade empfohlene Songs nach dieser Playlist laufen. */
     val followUp = MutableStateFlow<String?>(null)
 
+    /** Warum das aktuelle Profil gilt (Anzeige im Tab „Jetzt“). */
+    val reason = MutableStateFlow<String?>(null)
+
     val engineError = MutableStateFlow<String?>(null)
     val spotifyStatus = MutableStateFlow("Nicht verbunden")
 

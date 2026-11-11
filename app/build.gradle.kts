@@ -12,15 +12,30 @@ android {
         applicationId = "de.playlisteq.app"
         minSdk = 28 // DynamicsProcessing (frei wählbare Bandanzahl) gibt es ab Android 9
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        val build = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
+        versionCode = build
+        versionName = "1.0.$build"
+    }
+
+    // Fester Schlüssel: jede neue Version lässt sich über die alte installieren.
+    signingConfigs {
+        create("fixed") {
+            storeFile = rootProject.file("keystore/playlisteq.jks")
+            storePassword = "playlisteq"
+            keyAlias = "playlisteq"
+            keyPassword = "playlisteq"
+        }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
-            // Für Privatgebrauch mit dem Debug-Schlüssel signiert, damit die APK sofort installierbar ist.
-            signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+            signingConfig = signingConfigs.getByName("fixed")
+        }
+        debug {
+            signingConfig = signingConfigs.getByName("fixed")
         }
     }
     compileOptions {
