@@ -77,9 +77,33 @@ class MediaListenerService : NotificationListenerService() {
                 ?: md?.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST),
             album = md?.getString(MediaMetadata.METADATA_KEY_ALBUM),
             queueTitle = c.queueTitle?.toString()?.trim()?.takeUnless { isGeneric(it) },
+            contextTitle = findContextTitle(c, md),
             playing = c === active,
             details = collectDetails(c, md),
         )
+    }
+
+    /** Sucht Extras wie com.spotify.music.extra.context_title (Name der laufenden Playlist). */
+    @Suppress("DEPRECATION")
+    private fun findContextTitle(c: MediaController, md: MediaMetadata?): String? {
+        val bundles = listOfNotNull(c.playbackState?.extras, c.extras)
+        for (b in bundles) {
+            for (k in b.keySet()) {
+                if (k.endsWith("context_title", ignoreCase = true)) {
+                    val v = b.get(k)?.toString()?.trim()
+                    if (!v.isNullOrBlank() && !isGeneric(v)) return v
+                }
+            }
+        }
+        md?.let { m ->
+            for (k in m.keySet()) {
+                if (k.endsWith("context_title", ignoreCase = true)) {
+                    val v = m.getText(k)?.toString()?.trim()
+                    if (!v.isNullOrBlank() && !isGeneric(v)) return v
+                }
+            }
+        }
+        return null
     }
 
     /** Platzhalter, die manche Apps statt eines Playlist-Namens melden. */

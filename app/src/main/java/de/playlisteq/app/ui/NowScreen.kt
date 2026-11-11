@@ -70,6 +70,7 @@ fun NowScreen(onCreateRule: (Rule) -> Unit) {
     val applied by LiveState.applied.collectAsState()
     val current by LiveState.currentProfileName.collectAsState()
     val error by LiveState.engineError.collectAsState()
+    val followUp by LiveState.followUp.collectAsState()
 
     var listenerOk by remember { mutableStateOf(listenerEnabled(ctx)) }
     var notifOk by remember { mutableStateOf(notifGranted(ctx)) }
@@ -157,6 +158,7 @@ fun NowScreen(onCreateRule: (Rule) -> Unit) {
                 val playlist = EqCoordinator.playlistOf(n, sp)
                 InfoLine("App", n.appLabel + if (n.playing) "" else " (pausiert)")
                 InfoLine("Playlist", playlist ?: "– nicht erkannt –")
+                followUp?.let { InfoLine("", "Empfohlene Songs nach „$it“ – Profil bleibt aktiv") }
                 InfoLine("Titel", n.title ?: "–")
                 InfoLine("Künstler", n.artist ?: "–")
                 InfoLine("Album", n.album ?: "–")

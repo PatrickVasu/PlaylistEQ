@@ -85,7 +85,8 @@ fun RulesScreen(onEdit: (Rule) -> Unit) {
                             Text(r.appLabel.ifBlank { r.packageName }, style = MaterialTheme.typography.titleMedium)
                             Text(
                                 if (r.field == MatchField.APP) "Ganze App"
-                                else "${r.field.title} ${if (r.contains) "enthält" else "="} „${r.pattern}“",
+                                else "${r.field.title} ${if (r.contains) "enthält" else "="} „${r.pattern}“" +
+                                    if (r.field == MatchField.PLAYLIST && r.includeFollowUps) " + empfohlene Songs" else "",
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                             Text(
@@ -154,6 +155,16 @@ fun RuleDialog(initial: Rule, onDismiss: () -> Unit, onSave: (Rule) -> Unit) {
                         Checkbox(checked = rule.contains, onCheckedChange = { rule = rule.copy(contains = it) })
                         Text("Teil des Namens reicht (enthält)", style = MaterialTheme.typography.bodyMedium)
                     }
+                    if (rule.field == MatchField.PLAYLIST) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = rule.includeFollowUps, onCheckedChange = { rule = rule.copy(includeFollowUps = it) })
+                            Text(
+                                "Empfohlene Songs danach einschließen (Profil bleibt aktiv, bis eine andere Regel greift " +
+                                    "oder die Wiedergabe über 10 Min. pausiert)",
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                    }
                 }
                 Dropdown(
                     label = "EQ-Profil",
@@ -167,7 +178,15 @@ fun RuleDialog(initial: Rule, onDismiss: () -> Unit, onSave: (Rule) -> Unit) {
         confirmButton = {
             TextButton(
                 enabled = valid,
-                onClick = { onSave(if (rule.field == MatchField.APP) rule.copy(pattern = "", contains = false) else rule.copy(pattern = rule.pattern.trim())) },
+                onClick = {
+                    onSave(
+                        when (rule.field) {
+                            MatchField.APP -> rule.copy(pattern = "", contains = false, includeFollowUps = false)
+                            MatchField.PLAYLIST -> rule.copy(pattern = rule.pattern.trim())
+                            else -> rule.copy(pattern = rule.pattern.trim(), includeFollowUps = false)
+                        }
+                    )
+                },
             ) { Text("Speichern") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } },

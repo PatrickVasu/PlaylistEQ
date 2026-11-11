@@ -23,6 +23,11 @@ import kotlinx.coroutines.withContext
 object EqCoordinator {
     const val SPOTIFY_PKG = "com.spotify.music"
 
+    /** Zuletzt passende Playlist-Regel je App, die empfohlene Songs einschließt. */
+    private data class Sticky(val ruleId: String, var lastActive: Long)
+    private val sticky = HashMap<String, Sticky>()
+    private const val STICKY_TIMEOUT_MS = 10 * 60 * 1000L
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val engine = EqEngine()
     private var started = false
@@ -78,6 +83,12 @@ object EqCoordinator {
         engine.sync(desired)
         LiveState.applied.value = desired.mapValues { it.value?.name ?: "Aus" }
         LiveState.currentProfileName.value = resolve(snap.np?.packageName, snap)?.name
+        LiveState.followUp.value = snap.np?.let { n ->
+            val st = sticky[n.packageName] ?: return@let null
+            val r = snap.cfg.rules.firstOrNull { it.id == st.ruleId } ?: return@let null
+            if (snap.cfg.rules.filter { it.packageName == n.packageName && it.field != MatchField.APP }
+                    .any { matches(it, n, snap.sp) }) null else r.pattern
+        }
     }
 
     /**
@@ -90,9 +101,23 @@ object EqCoordinator {
             val appRules = snap.cfg.rules.filter { it.packageName == pkg }
             val np = snap.np?.takeIf { it.packageName == pkg }
             if (np != null) {
-                appRules.filter { it.field != MatchField.APP }
-                    .firstOrNull { matches(it, np, snap.sp) }
-                    ?.let { r -> byId[r.profileId]?.let { return it } }
+                val now = System.currentTimeMillis()
+                val hit = appRules.filter { it.field != MatchField.APP }.firstOrNull { matches(it, np, snap.sp) }
+                if (hit != null) {
+                    if (hit.includeFollowUps) sticky[pkg] = Sticky(hit.id, now) else sticky.remove(pkg)
+                    byId[hit.profileId]?.let { return it }
+                }
+                // Keine Regel passt: läuft die Playlist mit empfohlenen Songs weiter?
+                val st = sticky[pkg]
+                if (st != null) {
+                    val rule = appRules.firstOrNull { it.id == st.ruleId && it.includeFollowUps }
+                    if (rule != null && now - st.lastActive < STICKY_TIMEOUT_MS) {
+                        if (np.playing) st.lastActive = now
+                        byId[rule.profileId]?.let { return it }
+                    } else {
+                        sticky.remove(pkg)
+                    }
+                }
             }
             appRules.firstOrNull { it.field == MatchField.APP }
                 ?.let { r -> byId[r.profileId]?.let { return it } }
@@ -122,6 +147,7 @@ object EqCoordinator {
             sp.name?.let { list += it }
             sp.uri?.let { list += it }
         }
+        np.contextTitle?.let { list += it }
         np.queueTitle?.let { list += it }
         return list
     }
@@ -141,8 +167,10 @@ object EqCoordinator {
     /** Playlist-Name zur Anzeige / zum Anlegen einer Regel. */
     fun playlistOf(np: NowPlaying, sp: SpotifyContext?): String? {
         if (np.packageName == SPOTIFY_PKG && sp?.type == "playlist") {
-            return sp.name ?: sp.uri
+            sp.name?.let { return it }
         }
+        np.contextTitle?.let { return it }
+        if (np.packageName == SPOTIFY_PKG && sp?.type == "playlist" && sp.uri != null) return sp.uri
         return np.queueTitle?.takeIf { it.isNotBlank() }
     }
 }

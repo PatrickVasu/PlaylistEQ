@@ -119,9 +119,12 @@ data class Rule(
     val pattern: String = "",
     val contains: Boolean = false,
     val profileId: String = "",
+    /** Profil bleibt aktiv, wenn nach der Playlist empfohlene Songs / Autoplay weiterlaufen. */
+    val includeFollowUps: Boolean = false,
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("id", id)
+        .put("follow", includeFollowUps)
         .put("pkg", packageName)
         .put("label", appLabel)
         .put("field", field.name)
@@ -138,6 +141,7 @@ data class Rule(
             pattern = o.optString("pattern"),
             contains = o.optBoolean("contains", false),
             profileId = o.optString("profile"),
+            includeFollowUps = o.optBoolean("follow", false),
         )
     }
 }
@@ -172,6 +176,8 @@ data class NowPlaying(
     val artist: String?,
     val album: String?,
     val queueTitle: String?,
+    /** Wiedergabe-Kontext, den die App mitschickt (bei Spotify: …extra.context_title). */
+    val contextTitle: String? = null,
     val playing: Boolean,
     /** Alle Rohdaten, die die App meldet (für die Ansicht „Technische Details“). */
     val details: List<Pair<String, String>> = emptyList(),
